@@ -1,3 +1,33 @@
+# What's this?
+This is the course project of *Principles and Practice of Compiler Construction* at Tsinghua University in the autumn term 2019-2020, the new Decaf compiler.
+For more details about the Decaf compiler but not the course project in that term, please refer to the following "The New Decaf Compiler" section or [decaf-lang/decaf](https://github.com/decaf-lang/decaf).
+
+## What are the features in the autumn term 2019-2020?
+
+We added these features to the Decaf compiler:
+- Abstract classes and methods.
+- Variable type deduction.
+- First-class functions, including function type and variable, **lambda expression**, and a more general function calling method.
+- Detection of division by zero.
+
+For more details, please refer to https://decaf-project.gitbook.io/decaf-2019/ or https://github.com/xumingkuan/decaf-2019-project.
+
+## What can I learn from this repository?
+
+Compilers have many details.
+If you are engaged in the course *Principles and Practice of Compiler Construction* and wish to get a full mark in this project,
+you'd better think them over.
+You can read my full-mark code (although not guaranteed to be completely bug-free) for reference.
+You can use the commented code in [LLParser.java](https://github.com/xumingkuan/decaf-2019/blob/master/src/main/java/decaf/frontend/parsing/LLParser.java) for debugging in PA1-B.
+If you are using Windows like me, you can use [test.bat](https://github.com/xumingkuan/decaf-2019/blob/master/test.bat) to run your custom tests.
+
+If you are not engaged in this course, you can estimate the workload of this course in this semester by [this commit](https://github.com/xumingkuan/decaf-2019/commit/08aafd51abf4575a7267877012c8803f0093ad6c) :)
+Besides this repository, [decaf-lang/decaf](https://github.com/decaf-lang/decaf) may be a better place to have a glance at the Decaf compiler.
+
+## Why isn't there PA4 & PA5? I saw them in the Decaf 2019 project.
+They are optional. It's sufficient to get an A by doing PA1-A, PA1-B, PA2, PA3, and getting a high score in the final exam.
+Good luck!
+
 # The New Decaf Compiler
 
 <img src="https://github.com/decaf-lang/decaf/wiki/images/decaf-logo-h.svg?sanitize=true" width="300" align=center></img>
