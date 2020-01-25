@@ -24,7 +24,7 @@ If you are using Windows like me, you can use [test.bat](https://github.com/xumi
 If you are not engaged in this course, you can estimate the workload of this course in this semester by [this commit](https://github.com/xumingkuan/decaf-2019/commit/08aafd51abf4575a7267877012c8803f0093ad6c) :)
 Besides this repository, [decaf-lang/decaf](https://github.com/decaf-lang/decaf) may be a better place to have a glance at the Decaf compiler.
 
-## Why isn't there PA4 & PA5? I saw them in the Decaf 2019 project.
+## Why aren't there PA4 & PA5? I saw them in the Decaf 2019 project.
 They are optional. It's sufficient to get an A by doing PA1-A, PA1-B, PA2, PA3, and getting a high score in the final exam.
 Good luck!
 
