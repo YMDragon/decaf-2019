@@ -30,19 +30,20 @@ public class FuncLabel extends Label {
         return true;
     }
 
-    private FuncLabel() {
+    /*private FuncLabel() {
         super(Kind.FUNC, "main");
         this.clazz = "Main";
         this.method = "main";
-    }
+    }*/
 
     /**
      * Special function label: main entry.
      */
-    public static FuncLabel MAIN_LABEL = new FuncLabel() {
+    public static FuncLabel MAIN_LABEL = new FuncLabel("Main", "main");
+    /*public static FuncLabel MAIN_LABEL = new FuncLabel() {
         @Override
         public String prettyString() {
             return name;
         }
-    };
+    };*/
 }

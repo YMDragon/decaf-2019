@@ -3,6 +3,7 @@ package decaf.frontend.symbol;
 import decaf.frontend.scope.ClassScope;
 import decaf.frontend.scope.GlobalScope;
 import decaf.frontend.tree.Pos;
+import decaf.frontend.tree.Tree;
 import decaf.frontend.type.ClassType;
 import decaf.lowlevel.tac.ClassInfo;
 
@@ -23,19 +24,24 @@ public final class ClassSymbol extends Symbol {
      */
     public final ClassScope scope;
 
-    public ClassSymbol(String name, ClassType type, ClassScope scope, Pos pos) {
+    public final Tree.Modifiers modifiers;
+
+    public ClassSymbol(String name, ClassType type, ClassScope scope, Pos pos, Tree.Modifiers modifiers) {
         super(name, type, pos);
         this.parentSymbol = Optional.empty();
-        this.scope = scope;
         this.type = type;
+        this.scope = scope;
+        this.modifiers = modifiers;
         scope.setOwner(this);
     }
 
-    public ClassSymbol(String name, ClassSymbol parentSymbol, ClassType type, ClassScope scope, Pos pos) {
+    public ClassSymbol(String name, ClassSymbol parentSymbol, ClassType type, ClassScope scope, Pos pos,
+                       Tree.Modifiers modifiers) {
         super(name, type, pos);
         this.parentSymbol = Optional.of(parentSymbol);
-        this.scope = scope;
         this.type = type;
+        this.scope = scope;
+        this.modifiers = modifiers;
         scope.setOwner(this);
     }
 
@@ -47,6 +53,10 @@ public final class ClassSymbol extends Symbol {
     @Override
     public boolean isClassSymbol() {
         return true;
+    }
+
+    public boolean isAbstract() {
+        return modifiers.isAbstract();
     }
 
     /**
@@ -67,7 +77,10 @@ public final class ClassSymbol extends Symbol {
 
     @Override
     protected String str() {
-        return "class " + name + parentSymbol.map(classSymbol -> " : " + classSymbol.name).orElse("");
+        var modStr = modifiers.toString();
+        if (!modStr.isEmpty()) modStr += " ";
+        return modStr + "class " + name +
+                parentSymbol.map(classSymbol -> " : " + classSymbol.name).orElse("");
     }
 
     /**

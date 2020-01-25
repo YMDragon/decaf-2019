@@ -36,7 +36,18 @@ public final class PrettyScope extends PrettyPrinter<Scope> {
             printer.incIndent();
             if (scope.isEmpty()) printer.println("<empty>");
             else scope.forEach(printer::println);
-            pretty(formalScope.nestedLocalScope());
+            if (formalScope.hasLocalScope()) {
+                pretty(formalScope.nestedLocalScope());
+            }
+            printer.decIndent();
+        } else if (scope.isLambdaScope()) {
+            var lambdaScope = (LambdaScope) scope;
+            printer.formatLn("FORMAL SCOPE OF '%s':", lambdaScope.getOwner().name);
+            printer.incIndent();
+            if (scope.isEmpty()) printer.println("<empty>");
+            else scope.forEach(printer::println);
+//            lambdaScope.capturedVar.values().forEach(printer::println);
+            pretty(lambdaScope.nestedLocalScope());
             printer.decIndent();
         } else if (scope.isLocalScope()) {
             var localScope = (LocalScope) scope;
@@ -44,7 +55,7 @@ public final class PrettyScope extends PrettyPrinter<Scope> {
             printer.incIndent();
             if (scope.isEmpty()) printer.println("<empty>");
             else scope.forEach(printer::println);
-            localScope.nestedLocalScopes().forEach(this::pretty);
+            localScope.nestedLocalOrLambdaScopes().forEach(this::pretty);
             printer.decIndent();
         }
     }

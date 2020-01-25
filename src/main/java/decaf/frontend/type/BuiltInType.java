@@ -41,10 +41,22 @@ public final class BuiltInType extends Type {
      */
     public static final BuiltInType ERROR = new BuiltInType("Error");
 
+    /**
+     * Ill-typed, reserved for type checking (ONLY in return type deduction of lambda expression).
+     * A well-typed program can never contain this.
+     */
+    public static final BuiltInType INCMP = new BuiltInType("Incompatible");
+
     @Override
     public boolean subtypeOf(Type that) {
         if (eq(ERROR) || that.eq(ERROR)) {
             return true;
+        }
+        if (that.eq(INCMP)) {
+            return true;
+        }
+        if (eq(INCMP)) {
+            return false;
         }
         if (eq(NULL) && that.isClassType()) {
             return true;
@@ -75,6 +87,11 @@ public final class BuiltInType extends Type {
     @Override
     public boolean noError() {
         return !eq(ERROR);
+    }
+
+    @Override
+    public boolean isIncompatible() {
+        return eq(INCMP);
     }
 
     @Override

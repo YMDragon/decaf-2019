@@ -286,6 +286,84 @@ public class FuncVisitor {
     }
 
     /**
+     * Append instructions to get the entry of a member method.
+     *
+     * @param object     object ref temp
+     * @param clazz      class name
+     * @param method     member method name
+     * @return the method entry
+     */
+    public Temp visitFuncEntry(Temp object, String clazz, String method) {
+        var vtbl = visitLoadFrom(object);
+        return visitLoadFrom(vtbl, ctx.getOffset(clazz, method));
+    }
+
+    /**
+     * Append instructions to get the entry of a static method.
+     *
+     * @param clazz      class name
+     * @param method     member method name
+     * @return the method entry
+     */
+    public Temp visitFuncEntry(String clazz, String method) {
+        var vtbl = visitLoadVTable("static");
+        return visitLoadFrom(vtbl, ctx.getOffset(clazz, method));
+    }
+
+    /**
+     * Append instructions to get the entry of a lambda expression.
+     *
+     * @param pos        the position of the lambda expression
+     * @return the method entry
+     */
+    public Temp visitFuncEntry(decaf.frontend.tree.Pos pos) {
+        var vtbl = visitLoadVTable("fun");
+        return visitLoadFrom(vtbl, ctx.getOffset("lambda", pos.toString()));
+    }
+
+    /**
+     * Generate TAC code for a lambda function.
+     *
+     * @param pos       the position of the lambda expression
+     * @param numArgs   number of arguments
+     */
+    public FuncVisitor visitLambdaFunc(decaf.frontend.tree.Pos pos, int numArgs) {
+        var entry = ctx.getFuncLabel("lambda", pos.toString());
+        return new FuncVisitor(entry, numArgs, ctx);
+    }
+
+    /**
+     * Append instructions to add parameters to the following call.
+     *
+     * @param arg        argument temp
+     */
+    public void visitParm(Temp arg) {
+        func.add(new TacInstr.Parm(arg));
+    }
+
+    /**
+     * Append instructions to invoke a method or a lambda expression.
+     *
+     * @param args       argument temps
+     * @param needReturn do we need a fresh temp to store the return value? (default false)
+     * @return the fresh temp if we need return (or else null)
+     */
+    public Temp visitCall(Temp entry, List<Temp> args, boolean needReturn) {
+        Temp temp = null;
+
+        for (var arg : args) {
+            func.add(new TacInstr.Parm(arg));
+        }
+        if (needReturn) {
+            temp = freshTemp();
+            func.add(new TacInstr.IndirectCall(temp, entry));
+        } else {
+            func.add(new TacInstr.IndirectCall(entry));
+        }
+        return temp;
+    }
+
+    /**
      * Append an instruction to print a string.
      *
      * @param str string

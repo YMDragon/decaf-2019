@@ -7,23 +7,25 @@ import java.util.*;
 /**
  * Scopes.
  * <p>
- * A scope stores the mapping from names to {@link Symbol}s. Four kinds of scopes are used:
+ * A scope stores the mapping from names to {@link Symbol}s. Five kinds of scopes are used:
  * <ul>
  *     <li>global scope: stores globally-defined classes</li>
  *     <li>class scope: stores class members</li>
  *     <li>formal scope: stores parameters</li>
  *     <li>local scope: stores locally-defined variables</li>
+ *     <li>lambda scope: stores parameters</li>
  * </ul>
  *
  * @see GlobalScope
  * @see ClassScope
  * @see FormalScope
  * @see LocalScope
+ * @see LambdaScope
  */
 public abstract class Scope implements Iterable<Symbol> {
 
     public enum Kind {
-        GLOBAL, CLASS, FORMAL, LOCAL
+        GLOBAL, CLASS, FORMAL, LOCAL, LAMBDA
     }
 
     public final Kind kind;
@@ -99,8 +101,12 @@ public abstract class Scope implements Iterable<Symbol> {
         return false;
     }
 
-    public boolean isFormalOrLocalScope() {
-        return isFormalScope() || isLocalScope();
+    public boolean isLambdaScope() {
+        return false;
+    }
+
+    public boolean isFormalOrLocalOrLambdaScope() {
+        return isFormalScope() || isLocalScope() || isLambdaScope();
     }
 
     protected Map<String, Symbol> symbols = new TreeMap<>();

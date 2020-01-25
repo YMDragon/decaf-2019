@@ -7,20 +7,21 @@ import decaf.frontend.type.Type;
 /**
  * Symbols.
  * <p>
- * A symbol is created when a definition is identified and type-checked, indicating a class/variable/method is
- * resolved successfully, by {@link decaf.frontend.typecheck.Namer}.
+ * A symbol is created when a definition is identified and type-checked, indicating a class/variable/method/
+ * lambda expression is resolved successfully, by {@link decaf.frontend.typecheck.Namer}.
  * <p>
  * Symbols are used in two ways: stored in the symbol table of a scope, and referred by other expressions/statements.
  *
  * @see ClassSymbol
  * @see MethodSymbol
  * @see VarSymbol
+ * @see LambdaSymbol
  */
 public abstract class Symbol implements Comparable<Symbol> {
 
     public final String name;
 
-    public final Type type;
+    public Type type;
 
     public final Pos pos;
 
@@ -52,6 +53,10 @@ public abstract class Symbol implements Comparable<Symbol> {
     }
 
     public boolean isMethodSymbol() {
+        return false;
+    }
+
+    public boolean isLambdaSymbol() {
         return false;
     }
 

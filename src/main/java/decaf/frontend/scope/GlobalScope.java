@@ -1,6 +1,7 @@
 package decaf.frontend.scope;
 
 import decaf.frontend.symbol.ClassSymbol;
+import decaf.frontend.symbol.LambdaSymbol;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,4 +38,6 @@ public class GlobalScope extends Scope {
         }
         return scopes;
     }
+
+    public List<LambdaSymbol> lambdaSymbols = new ArrayList<>();
 }

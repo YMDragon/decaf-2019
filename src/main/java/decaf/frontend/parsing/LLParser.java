@@ -100,9 +100,50 @@ public class LLParser extends Phase<InputStream, Tree.TopLevel> {
                 case Tokens.GREATER_EQUAL -> GREATER_EQUAL;
                 case Tokens.EQUAL -> EQUAL;
                 case Tokens.NOT_EQUAL -> NOT_EQUAL;
+                case Tokens.ABSTRACT -> ABSTRACT;
+                case Tokens.VAR -> VAR;
+                case Tokens.FUN -> FUN;
+                case Tokens.ARROW -> ARROW;
                 default -> code; // single-character, use their ASCII code!
             };
         }
+
+        /*private String[] symbols; // for debug, may cause timeout
+        private boolean init = false;
+        private void initSymbols() {
+            init = true;
+            try {
+                java.io.File lltable = new java.io.File(
+                        "C:\\Users\\xmk\\Desktop\\decaf-2017011310\\build\\generated-src\\ll1pg\\LLTable.java");
+                // TODO: Don't forget to change the directory if you want to use this part of code to debug!
+                if (lltable.isFile() && lltable.exists()) {
+                    InputStream in = new java.io.FileInputStream(lltable);
+                    java.util.Scanner scanner = new java.util.Scanner(in);
+                    symbols = new String[600];
+                    for (int i = 0; i < 128; i++) {
+                        symbols[i] = "\'" + (char) i + "\'";
+                    }
+                    for (int i = 0; i < 200; i++) {
+                        String s = scanner.nextLine();
+                        int pos = s.indexOf("public static final int");
+                        if (pos != -1) {
+                            int pos2 = s.indexOf("=");
+                            int num = 0;
+                            for (int j = pos2 + 2; true; j++) {
+                                if (s.charAt(j) >= '0' && s.charAt(j) <= '9')
+                                    num = num * 10 + s.charAt(j) - '0';
+                                else
+                                    break;
+                            }
+                            symbols[num] = s.substring(pos + 24, pos2 - 1);
+                        }
+                    }
+                }
+            }
+            catch (java.io.IOException | NullPointerException e) {
+                System.err.println(e);
+            }
+        }*/
 
         /**
          * Parse function for every non-terminal, with error recovery.
@@ -114,7 +155,38 @@ public class LLParser extends Phase<InputStream, Tree.TopLevel> {
          * @return the parsed value of {@code symbol} if parsing succeeds, or else {@code null}.
          */
         private SemValue parseSymbol(int symbol, Set<Integer> follow) {
+            follow.addAll(followSet(symbol));
+
+            /*if (false) { // debug
+                if (!init)
+                    initSymbols();
+                System.err.print("parsing symbol " + symbols[symbol] + ":");
+                for (var i : followSet(symbol)) {
+                    System.err.print(" " + (i == -1 ? "eof" : symbols[i]));
+                }
+                System.err.print(" token=" + symbols[token]);
+                System.err.println();
+            }*/
+
             var result = query(symbol, token); // get production by lookahead symbol
+//            System.err.println(result);
+            if (result == null) {
+                yyerror("syntax error");
+                if (follow.contains(token)) {
+//                    System.err.println("failed " + symbols[symbol] + ": follow contains " + symbols[token]);
+                    return null;
+                }
+                while (result == null) {
+//                    System.err.println("skip " + symbols[token]);
+                    matchToken(token); // skip the token
+                    result = query(symbol, token);
+                    if (result == null && follow.contains(token)) {
+//                        System.err.println("failed " + symbols[symbol] + ": follow contains " + symbols[token]);
+                        return null;
+                    }
+                }
+            }
+
             var actionId = result.getKey(); // get user-defined action
 
             var right = result.getValue(); // right-hand side of production
@@ -123,13 +195,21 @@ public class LLParser extends Phase<InputStream, Tree.TopLevel> {
 
             for (var i = 0; i < length; i++) { // parse right-hand side symbols one by one
                 var term = right.get(i);
+                var nextFollow = new TreeSet<>(follow);
                 params[i + 1] = isNonTerminal(term)
-                        ? parseSymbol(term, follow) // for non terminals: recursively parse it
+                        ? parseSymbol(term, nextFollow) // for non terminals: recursively parse it
                         : matchToken(term) // for terminals: match token
                 ;
             }
 
+            for (var i = 0; i < length; i++) {
+                if (params[i + 1] == null) { // syntax error
+//                    System.err.println("failed " + symbols[symbol]);
+                    return null;
+                }
+            }
             act(actionId, params); // do user-defined action
+//            System.err.println("parsed symbol " + symbols[symbol] + ":" + params[0].toString());
             return params[0];
         }
 

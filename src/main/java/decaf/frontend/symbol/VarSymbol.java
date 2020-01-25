@@ -16,6 +16,15 @@ public final class VarSymbol extends Symbol {
         super(name, type, pos);
     }
 
+    public VarSymbol(String name, Pos pos) {
+        // For type deducing.
+        super(name, null, pos);
+    }
+
+    public void setType(Type type) {
+        super.type = type;
+    }
+
     /**
      * Create a variable symbol for {@code this}.
      *
@@ -42,7 +51,7 @@ public final class VarSymbol extends Symbol {
     }
 
     public boolean isParam() {
-        return definedIn.isFormalScope();
+        return definedIn.isFormalScope() || definedIn.isLambdaScope();
     }
 
     public boolean isMemberVar() {

@@ -29,6 +29,17 @@ public class TacGen extends Phase<Tree.TopLevel, TacProg> implements TacEmitter 
 
         // Step 1: create virtual tables.
         pw.visitVTables();
+        for (var clazz : tree.classes) {
+            for (var method : clazz.methods()) {
+                if (method.isStatic()) {
+                    pw.visitStaticMethod(clazz.name, method.name);
+                }
+            }
+        }
+        for (var lambdaSymbol : tree.globalScope.lambdaSymbols) {
+            pw.visitLambda(lambdaSymbol.pos);
+        }
+        pw.visitVTablesPostProcess();
 
         // Step 2: emit tac instructions for every method.
         for (var clazz : tree.classes) {
@@ -52,7 +63,7 @@ public class TacGen extends Phase<Tree.TopLevel, TacProg> implements TacEmitter 
                     }
                 }
 
-                method.body.accept(this, mv);
+                method.body.ifPresent(objects -> objects.accept(this, mv));
                 mv.visitEnd();
             }
         }

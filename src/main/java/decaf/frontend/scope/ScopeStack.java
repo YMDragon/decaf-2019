@@ -77,12 +77,12 @@ public class ScopeStack {
      * Otherwise, only push the `scope`.
      * <p>
      * REQUIRES: you don't open multiple class scopes, and never open a class scope when the current scope is
-     * a formal/local scope.
+     * a formal/local/lambda scope.
      */
     public void open(Scope scope) {
         assert !scope.isGlobalScope();
         if (scope.isClassScope()) {
-            assert !currentScope().isFormalOrLocalScope();
+            assert !currentScope().isFormalOrLocalOrLambdaScope();
             var classScope = (ClassScope) scope;
             classScope.parentScope.ifPresent(this::open);
             currClass = classScope.getOwner();
@@ -122,20 +122,22 @@ public class ScopeStack {
     }
 
     /**
-     * Same with {@link #lookup} but we restrict the symbol's position to be before the given {@code pos}.
+     * Same with {@link #lookup} but we restrict the symbol's position to be before the given {@code pos}
+     * and the symbol is not being defined.
      *
      * @param key symbol's name
      * @param pos position
-     * @return innermost found symbol before {@code pos} (if any)
+     * @return innermost found symbol before {@code pos} and with a proper type (if any)
      */
     public Optional<Symbol> lookupBefore(String key, Pos pos) {
-        return findWhile(key, whatever -> true, s -> !(s.domain().isLocalScope() && s.pos.compareTo(pos) >= 0));
+        return findWhile(key, whatever -> true,
+                s -> !(s.domain().isLocalScope() && s.pos.compareTo(pos) >= 0) && s.type != null);
     }
 
     /**
      * Find if a symbol is conflicting with some already defined symbol. Rules:
-     * First, if the current scope is local scope or formal scope, then it cannot conflict with any already defined
-     * symbol till the formal scope, and it cannot conflict with any names in the global scope.
+     * First, if the current scope is local scope or formal scope or lambda scope, then it cannot conflict with any
+     * already defined symbol till the formal scope, and it cannot conflict with any names in the global scope.
      * <p>
      * Second, if the current scope is class scope or global scope, then it cannot conflict with any already defined
      * symbol.
@@ -146,8 +148,8 @@ public class ScopeStack {
      * @return innermost conflicting symbol (if any)
      */
     public Optional<Symbol> findConflict(String key) {
-        if (currentScope().isFormalOrLocalScope())
-            return findWhile(key, Scope::isFormalOrLocalScope, whatever -> true).or(() -> global.find(key));
+        if (currentScope().isFormalOrLocalOrLambdaScope())
+            return findWhile(key, Scope::isFormalOrLocalOrLambdaScope, whatever -> true).or(() -> global.find(key));
         return lookup(key);
     }
 

@@ -1,5 +1,7 @@
 package decaf.frontend.type;
 
+import java.util.ArrayList;
+
 /**
  * Type.
  * <p>
@@ -49,6 +51,10 @@ public abstract class Type {
         return true;
     }
 
+    public boolean isIncompatible() {
+        return false;
+    }
+
     public boolean hasError() {
         return !noError();
     }
@@ -62,6 +68,7 @@ public abstract class Type {
      *     <li>transitive: {@code t1} {@literal <:} {@code t3} if
      *          {@code t1} {@literal <:} {@code t2} and {@code t2} {@literal <:} {@code t3}</li>
      *     <li>error is special: {@code error} {@literal <:} {@code t}, {@code t} {@literal <:} {@code error}</li>
+     *     <li>incmp is special: {@code t} {@literal <:} {@code incmp}</li>
      *     <li>null is an object: {@code null} {@literal <:} {@code class c} for every class {@code c}</li>
      *     <li>class inheritance: {@code class c1} {@literal <:} {@code class c2} if {@code c1} extends {@code c2}</li>
      *     <li>function: {@code (t1, t2, ..., tn) => t} {@literal <:} {@code (s1, s2, ..., sn) => s} if
@@ -80,6 +87,87 @@ public abstract class Type {
      * @return type equivalent checking result
      */
     public abstract boolean eq(Type that);
+
+    /**
+     * Upper bound and lower bound of two types.
+     *
+     * @param that another type
+     * @return upper bound or lower bound
+     */
+    public Type upperBound(Type that) {
+        if (hasError())
+            return that;
+        if (that.hasError())
+            return this;
+        if (subtypeOf(that))
+            return that;
+        if (that.subtypeOf(this))
+            return this;
+        if (isClassType()) {
+            ClassType result = (ClassType) this;
+            while (result.superType.isPresent()) {
+                result = result.superType.get();
+                if (that.subtypeOf(result)) {
+                    return result;
+                }
+            }
+        }
+        if (isFuncType() && that.isFuncType()) {
+            assert this instanceof FunType;
+            FunType thisFunc = (FunType) this;
+            FunType thatFunc = (FunType) that;
+            if (thisFunc.argTypes.size() != thatFunc.argTypes.size()) {
+                return BuiltInType.INCMP;
+            }
+            Type returnType = thisFunc.returnType.upperBound(thatFunc.returnType);
+            if (returnType.isIncompatible()) {
+                return BuiltInType.INCMP;
+            }
+            var argTypes = new ArrayList<Type>();
+            for (int i = 0; i < thisFunc.argTypes.size(); i++) {
+                argTypes.add(thisFunc.argTypes.get(i).lowerBound(thatFunc.argTypes.get(i)));
+                if (argTypes.get(i).isIncompatible()) {
+                    return BuiltInType.INCMP;
+                }
+            }
+            return new FunType(returnType, argTypes);
+        }
+        return BuiltInType.INCMP;
+    }
+
+    public Type lowerBound(Type that) {
+        if (hasError())
+            return that;
+        if (that.hasError())
+            return this;
+        if (isIncompatible() || that.isIncompatible())
+            return BuiltInType.INCMP;
+        if (subtypeOf(that))
+            return this;
+        if (that.subtypeOf(this))
+            return that;
+        if (isFuncType() && that.isFuncType()) {
+            assert this instanceof FunType;
+            FunType thisFunc = (FunType) this;
+            FunType thatFunc = (FunType) that;
+            if (thisFunc.argTypes.size() != thatFunc.argTypes.size()) {
+                return BuiltInType.INCMP;
+            }
+            Type returnType = thisFunc.returnType.lowerBound(thatFunc.returnType);
+            if (returnType.isIncompatible()) {
+                return BuiltInType.INCMP;
+            }
+            var argTypes = new ArrayList<Type>();
+            for (int i = 0; i < thisFunc.argTypes.size(); i++) {
+                argTypes.add(thisFunc.argTypes.get(i).upperBound(thatFunc.argTypes.get(i)));
+                if (argTypes.get(i).isIncompatible()) {
+                    return BuiltInType.INCMP;
+                }
+            }
+            return new FunType(returnType, argTypes);
+        }
+        return BuiltInType.INCMP;
+    }
 
     public abstract String toString();
 }

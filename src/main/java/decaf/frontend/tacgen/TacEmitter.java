@@ -1,5 +1,6 @@
 package decaf.frontend.tacgen;
 
+import decaf.frontend.symbol.VarSymbol;
 import decaf.frontend.tree.Tree;
 import decaf.frontend.tree.Visitor;
 import decaf.frontend.type.BuiltInType;
@@ -10,8 +11,7 @@ import decaf.lowlevel.tac.Intrinsic;
 import decaf.lowlevel.tac.RuntimeError;
 import decaf.lowlevel.tac.TacInstr;
 
-import java.util.ArrayList;
-import java.util.Stack;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -32,6 +32,14 @@ public interface TacEmitter extends Visitor<FuncVisitor> {
      * Push a label when entering a loop, and pop when leaving a loop.
      */
     Stack<Label> loopExits = new Stack<>();
+
+    /**
+     * Record the lambda expressions entered so far. In this way, when we encounter a captured variable, we know the
+     * exact offset we need.
+     * <p>
+     * Push a Tree.Lambda when entering a lambda expression, and pop when leaving a lambda expression.
+     */
+    Stack<Tree.Lambda> lambdaStack = new Stack<>();
 
     @Override
     default void visitBlock(Tree.Block block, FuncVisitor mv) {
@@ -233,17 +241,62 @@ public interface TacEmitter extends Visitor<FuncVisitor> {
         };
         expr.lhs.accept(this, mv);
         expr.rhs.accept(this, mv);
+
+        if (expr.op.equals(Tree.BinaryOp.DIV) || expr.op.equals(Tree.BinaryOp.MOD)) {
+            var ok = mv.freshLabel();
+            mv.visitBranch(TacInstr.CondBranch.Op.BNEZ, expr.rhs.val, ok);
+            mv.visitPrint(RuntimeError.DIVISION_BY_ZERO);
+            mv.visitIntrinsicCall(Intrinsic.HALT);
+            mv.visitLabel(ok);
+        }
         expr.val = mv.visitBinary(op, expr.lhs.val, expr.rhs.val);
     }
 
     @Override
     default void visitVarSel(Tree.VarSel expr, FuncVisitor mv) {
+        if (expr.isArrayLength) {
+            // a: 3, arrayEntry
+            var eight = mv.visitLoad(8);
+            var a = mv.visitIntrinsicCall(Intrinsic.ALLOCATE, true, eight);
+            var three = mv.visitLoad(3);
+            mv.visitStoreTo(a, three);
+            var object = expr.receiver.get();
+            object.accept(this, mv);
+            mv.visitStoreTo(a, 4, object.val);
+            expr.val = a;
+            return;
+        }
+        if (expr.isMethod) {
+            if (expr.isStaticMethod) {
+                // a: 0, funcEntry
+                var eight = mv.visitLoad(8);
+                var a = mv.visitIntrinsicCall(Intrinsic.ALLOCATE, true, eight);
+                var zero = mv.visitLoad(0);
+                mv.visitStoreTo(a, zero);
+                var entry = mv.visitFuncEntry(expr.receiverClassName.get(), expr.name);
+                mv.visitStoreTo(a, 4, entry);
+                expr.val = a;
+            } else {
+                // a: 1, funcEntry, this
+                var twelve = mv.visitLoad(12);
+                var a = mv.visitIntrinsicCall(Intrinsic.ALLOCATE, true, twelve);
+                var one = mv.visitLoad(1);
+                mv.visitStoreTo(a, one);
+                var object = expr.receiver.get();
+                object.accept(this, mv);
+                var entry = mv.visitFuncEntry(object.val, expr.receiverClassName.get(), expr.name);
+                mv.visitStoreTo(a, 4, entry);
+                mv.visitStoreTo(a, 8, object.val);
+                expr.val = a;
+            }
+            return;
+        }
         if (expr.symbol.isMemberVar()) {
             var object = expr.receiver.get();
             object.accept(this, mv);
             expr.val = mv.visitMemberAccess(object.val, expr.symbol.getOwner().name, expr.name);
         } else { // local or param
-            expr.val = expr.symbol.temp;
+            expr.val = getCapturedVar(expr.name, mv).orElse(expr.symbol.temp);
         }
     }
 
@@ -253,6 +306,46 @@ public interface TacEmitter extends Visitor<FuncVisitor> {
         expr.index.accept(this, mv);
         var addr = emitArrayElementAddress(expr.array.val, expr.index.val, mv);
         expr.val = mv.visitLoadFrom(addr);
+    }
+
+    @Override
+    default void visitLambda(Tree.Lambda expr, FuncVisitor mv) {
+        var capturedVars = expr.scope.capturedVars();
+
+        var originalFunc = mv.freshLabel();
+        mv.visitBranch(originalFunc);
+        int numParams = capturedVars.size();
+        lambdaStack.push(expr);
+        FuncVisitor lambdaMv = mv.visitLambdaFunc(expr.pos, numParams + expr.params.size());
+        for (var param : expr.params) {
+            param.symbol.temp = lambdaMv.getArgTemp(numParams);
+            numParams++;
+        }
+        if (expr.hasReturnExpr()) {
+            expr.returnExpr.get().accept(this, lambdaMv);
+            lambdaMv.visitReturn(expr.returnExpr.get().val);
+        } else {
+            expr.body.get().accept(this, lambdaMv);
+        }
+        lambdaMv.visitEnd();
+        lambdaStack.pop();
+        mv.visitLabel(originalFunc);
+
+        // a: 2, funcEntry, numCaptured, arg1, arg2, ...
+        var size = mv.visitLoad(12 + 4 * capturedVars.size());
+        var a = mv.visitIntrinsicCall(Intrinsic.ALLOCATE, true, size);
+        var two = mv.visitLoad(2);
+        mv.visitStoreTo(a, two);
+        var entry = mv.visitFuncEntry(expr.pos);
+        mv.visitStoreTo(a, 4, entry);
+        var numCaptured = mv.visitLoad(capturedVars.size());
+        mv.visitStoreTo(a, 8, numCaptured);
+        for (int i = 0; i < capturedVars.size(); i++ ) {
+            var varI = capturedVars.get(i);
+            var argI = getCapturedVar(varI.name, mv).orElse(varI.temp);
+            mv.visitStoreTo(a, 12 + i * 4, argI);
+        }
+        expr.val = a;
     }
 
     @Override
@@ -268,37 +361,80 @@ public interface TacEmitter extends Visitor<FuncVisitor> {
 
     @Override
     default void visitThis(Tree.This expr, FuncVisitor mv) {
-        expr.val = mv.getArgTemp(0);
+        expr.val = getCapturedVar("this", mv).orElse(mv.getArgTemp(0));
     }
 
     @Override
     default void visitCall(Tree.Call expr, FuncVisitor mv) {
-        if (expr.isArrayLength) { // special case for array.length()
-            var array = expr.receiver.get();
-            array.accept(this, mv);
-            expr.val = mv.visitLoadFrom(array.val, -4);
-            return;
-        }
+        expr.methodExpr.accept(this, mv);
 
         expr.args.forEach(arg -> arg.accept(this, mv));
         var temps = new ArrayList<Temp>();
         expr.args.forEach(arg -> temps.add(arg.val));
+        var type = mv.visitLoadFrom(expr.methodExpr.val);
+        var entry = mv.visitLoadFrom(expr.methodExpr.val, 4);
 
-        if (expr.symbol.isStatic()) {
-            if (expr.symbol.type.returnType.isVoidType()) {
-                mv.visitStaticCall(expr.symbol.owner.name, expr.symbol.name, temps);
-            } else {
-                expr.val = mv.visitStaticCall(expr.symbol.owner.name, expr.symbol.name, temps, true);
-            }
-        } else {
-            var object = expr.receiver.get();
-            object.accept(this, mv);
-            if (expr.symbol.type.returnType.isVoidType()) {
-                mv.visitMemberCall(object.val, expr.symbol.owner.name, expr.symbol.name, temps);
-            } else {
-                expr.val = mv.visitMemberCall(object.val, expr.symbol.owner.name, expr.symbol.name, temps, true);
-            }
+        var exit = mv.freshLabel();
+        if (!expr.type.isVoidType()) {
+            expr.val = mv.freshTemp();
         }
+        var notStatic = mv.freshLabel();
+        mv.visitBranch(TacInstr.CondBranch.Op.BNEZ, type, notStatic);
+        // static: 0, funcEntry
+        if (expr.type.isVoidType()) {
+            mv.visitCall(entry, temps, false);
+        } else {
+            mv.visitAssign(expr.val, mv.visitCall(entry, temps, true));
+        }
+        mv.visitBranch(exit);
+        mv.visitLabel(notStatic);
+
+        var minusOne = mv.visitLoad(-1);
+        var typeMinusOne = mv.visitBinary(TacInstr.Binary.Op.ADD, type, minusOne);
+        var notNonStatic = mv.freshLabel();
+        mv.visitBranch(TacInstr.CondBranch.Op.BNEZ, typeMinusOne, notNonStatic);
+        // non-static: 1, funcEntry, this
+        var thisPointer = mv.visitLoadFrom(expr.methodExpr.val, 8);
+        mv.visitParm(thisPointer);
+        if (expr.type.isVoidType()) {
+            mv.visitCall(entry, temps, false);
+        } else {
+            mv.visitAssign(expr.val, mv.visitCall(entry, temps, true));
+        }
+        mv.visitBranch(exit);
+        mv.visitLabel(notNonStatic);
+
+        var minusTwo = mv.visitLoad(-2);
+        var typeMinusTwo = mv.visitBinary(TacInstr.Binary.Op.ADD, type, minusTwo);
+        var notLambda = mv.freshLabel();
+        mv.visitBranch(TacInstr.CondBranch.Op.BNEZ, typeMinusTwo, notLambda);
+        // lambda: 2, funcEntry, numCaptured, arg1, arg2, ...
+        var numCaptured = mv.visitLoadFrom(expr.methodExpr.val, 8);
+        var twelve = mv.visitLoad(12);
+        var four = mv.visitLoad(4);
+        var currentArgPos = mv.visitBinary(TacInstr.Binary.Op.ADD, expr.methodExpr.val, twelve);
+        Function<FuncVisitor, Temp> test = v -> numCaptured;
+        Consumer<FuncVisitor> body = v -> {
+            var currentArg = v.visitLoadFrom(currentArgPos);
+            v.visitParm(currentArg);
+            v.visitBinarySelf(TacInstr.Binary.Op.ADD, numCaptured, minusOne);
+            v.visitBinarySelf(TacInstr.Binary.Op.ADD, currentArgPos, four);
+        };
+        emitWhile(test, body, mv.freshLabel(), mv);
+        if (expr.type.isVoidType()) {
+            mv.visitCall(entry, temps, false);
+        } else {
+            mv.visitAssign(expr.val, mv.visitCall(entry, temps, true));
+        }
+        mv.visitBranch(exit);
+        mv.visitLabel(notLambda);
+
+        // array: 3, arrayEntry
+        if (!expr.type.isVoidType()) {
+            mv.visitAssign(expr.val, mv.visitLoadFrom(entry, -4));
+        }
+
+        mv.visitLabel(exit);
     }
 
     @Override
@@ -597,5 +733,22 @@ public interface TacEmitter extends Visitor<FuncVisitor> {
         mv.visitLabel(exit);
 
         return ret;
+    }
+
+    private Optional<Temp> getCapturedVar(List<VarSymbol> capturedVars, String name, FuncVisitor mv) {
+        for (int i = 0; i < capturedVars.size(); i++) {
+            if (capturedVars.get(i).name.equals(name)) {
+                return Optional.of(mv.getArgTemp(i));
+            }
+        }
+        return Optional.empty();
+    }
+
+    private Optional<Temp> getCapturedVar(String name, FuncVisitor mv) {
+        if (lambdaStack.empty()) {
+            return name.equals("this") ? Optional.of(mv.getArgTemp(0)) : Optional.empty();
+        } else {
+            return getCapturedVar(lambdaStack.peek().scope.capturedVars(), name, mv);
+        }
     }
 }

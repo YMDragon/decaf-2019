@@ -3,6 +3,7 @@ package decaf.frontend.parsing;
 import decaf.frontend.tree.Pos;
 import decaf.frontend.tree.Tree;
 import decaf.lowlevel.StringUtils;
+import org.apache.commons.lang3.tuple.MutablePair;
 
 import java.util.List;
 
@@ -14,8 +15,8 @@ import java.util.List;
  */
 class SemValue {
     enum Kind {
-        TOKEN, CLASS, CLASS_LIST, FIELD, FIELD_LIST, VAR, VAR_LIST, TYPE, STMT, STMT_LIST, BLOCK, EXPR, EXPR_LIST,
-        LVALUE, ID, TEMPORARY
+        TOKEN, CLASS, CLASS_LIST, FIELD, FIELD_LIST, VAR, VAR_LIST, TYPE, TYPE_LIST, TYPE_LIST_LIST,
+        STMT, STMT_LIST, BLOCK, EXPR, EXPR_LIST, LVALUE, ID, TEMPORARY
     }
 
     /**
@@ -82,6 +83,8 @@ class SemValue {
     List<Tree.LocalVarDef> varList; // a list can only contain local vars
 
     Tree.TypeLit type;
+    List<Tree.TypeLit> typeList;
+    List<MutablePair<List<Tree.TypeLit>, Integer>> typeListList; // for int(int)[](int)[]
 
     Tree.Stmt stmt;
     List<Tree.Stmt> stmtList;
@@ -100,6 +103,7 @@ class SemValue {
     public String toString() {
         String msg = switch (kind) {
             case TOKEN -> switch (code) {
+                case Tokens.ABSTRACT -> "keyword  : abstract";
                 case Tokens.BOOL -> "keyword  : bool";
                 case Tokens.BREAK -> "keyword  : break";
                 case Tokens.CLASS -> "keyword  : class";
@@ -117,9 +121,11 @@ class SemValue {
                 case Tokens.RETURN -> "keyword  : return";
                 case Tokens.STRING -> "keyword  : string";
                 case Tokens.THIS -> "keyword  : this";
+                case Tokens.VAR -> "keyword  : var";
                 case Tokens.VOID -> "keyword  : void";
                 case Tokens.WHILE -> "keyword  : while";
-                case Tokens.STATIC -> "keyword : static";
+                case Tokens.STATIC -> "keyword  : static";
+                case Tokens.FUN -> "keyword  : fun";
                 case Tokens.INT_LIT -> "int literal : " + intVal;
                 case Tokens.BOOL_LIT -> "bool literal : " + boolVal;
                 case Tokens.STRING_LIT -> "string literal : " + StringUtils.quote(strVal);
@@ -130,6 +136,7 @@ class SemValue {
                 case Tokens.LESS_EQUAL -> "operator : <=";
                 case Tokens.NOT_EQUAL -> "operator : !=";
                 case Tokens.OR -> "operator : ||";
+                case Tokens.ARROW -> "operator : =>";
                 default -> "operator : " + (char) code;
             };
             case CLASS -> "CLASS: " + clazz;
@@ -139,6 +146,8 @@ class SemValue {
             case VAR -> "VAR: " + type + " " + id;
             case VAR_LIST -> "VAR_LIST: " + varList;
             case TYPE -> "TYPE: " + type;
+            case TYPE_LIST -> "TYPE_LIST: " + typeList;
+            case TYPE_LIST_LIST -> "TYPE_LIST_LIST: " + typeListList;
             case STMT -> "STMT: " + stmt;
             case STMT_LIST -> "STMT_LIST: " + stmtList;
             case BLOCK -> "BLOCK: " + block;
@@ -166,6 +175,10 @@ class SemValue {
                             SemValue $1, SemValue $2, SemValue $3, SemValue $4, SemValue $5, SemValue $6) {
         {
             // Your action
+//            'var' Id '=' Expr
+//            {
+//                $$ = svStmt(new LocalVarDef(new TypeLit(($4.expr).kind, "LocalVarDef", $1.pos), $2.id, $3.pos, Optional.of($4.expr), $1.pos));
+//            }
         }
     }
 }

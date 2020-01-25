@@ -45,6 +45,36 @@ public class ProgramWriter {
     }
 
     /**
+     * Post-processing after generating TAC code for virtual tables.
+     */
+    public void visitVTablesPostProcess() {
+        ctx.putVTable(ctx.staticVtbl);
+        ctx.putOffsets(ctx.staticVtbl);
+        ctx.putVTable(ctx.lambdaVtbl);
+        ctx.putOffsets(ctx.lambdaVtbl);
+    }
+
+    /**
+     * Update virtual table for a static method.
+     *
+     * @param className class name
+     * @param funcName  function name
+     */
+    public void visitStaticMethod(String className, String funcName) {
+        ctx.staticVtbl.memberMethods.add(ctx.getFuncLabel(className, funcName));
+    }
+
+    /**
+     * Update virtual table for a lambda expression.
+     *
+     * @param pos the position of the lambda expression
+     */
+    public void visitLambda(decaf.frontend.tree.Pos pos) {
+        ctx.putFuncLabel("lambda", pos.toString());
+        ctx.lambdaVtbl.memberMethods.add(ctx.getFuncLabel("lambda", pos.toString()));
+    }
+
+    /**
      * Generate TAC code for the main method.
      */
     public FuncVisitor visitMainMethod() {
@@ -109,7 +139,7 @@ public class ProgramWriter {
 
         // Member methods consist of ones that are:
         // 1. inherited from super class
-        // 2. overriden by this class
+        // 2. overridden by this class
 
         if (parent.isPresent()) {
             for (var lbl : parent.get().memberMethods) {
@@ -130,7 +160,7 @@ public class ProgramWriter {
 
         // Similarly, member variables consist of ones that are:
         // 1. inherited from super class
-        // 2. overriden by this class (Decaf doesn't support this, but handle it for future)
+        // 2. overridden by this class (Decaf doesn't support this, but handle it for future)
 
         if (parent.isPresent()) {
             for (var variable : parent.get().memberVariables) {
@@ -191,6 +221,16 @@ public class ProgramWriter {
         }
 
         void putOffsets(VTable vtbl) {
+            if (vtbl.className.equals("static") || vtbl.className.equals("fun")) {
+                // special case: static vtable or lambda vtable
+                var offset = 8;
+                for (var l : vtbl.memberMethods) {
+                    offsets.put(l.clazz + "." + l.method, offset);
+                    offset += 4;
+                }
+                return;
+            }
+
             var prefix = vtbl.className + ".";
 
             var offset = 8;
@@ -215,6 +255,10 @@ public class ProgramWriter {
         List<TacFunc> funcs = new ArrayList<>();
 
         private int nextTempLabelId = 1;
+
+        public VTable staticVtbl = new VTable("static", Optional.empty());
+
+        public VTable lambdaVtbl = new VTable("fun", Optional.empty());
     }
 
 }
